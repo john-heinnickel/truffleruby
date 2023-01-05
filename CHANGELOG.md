@@ -19,6 +19,8 @@ Bug fixes:
 * Fix `String#dump` and use `\u{xxxx}` notation (with curly brackets) for characters that don't fit in `\uxxxx` (#2794, @andrykonchin).
 * Fix `Marshal.dump` when big Integer (that cannot be expressed with 4 bytes) is serialized (#2790, @andrykonchin).
 * Fix `Array#pack` and accept `Numeric` values when `Float` is expected (#2815, @andrykonchin).
+* Fix `\P{}` matching in regular expressions (#2798, @andrykonchin).
+* Fix constants lookup when `BasicObject#instance_eval` method is called with a String (#2810, @andrykonchin).
 
 Compatibility:
 
