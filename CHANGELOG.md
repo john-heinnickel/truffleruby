@@ -65,6 +65,7 @@ Performance:
 
 Changes:
 
+* Remove `Truffle::Interop.deproxy` as it is unsafe and not useful (@eregon).
 
 # 22.3.0
 
