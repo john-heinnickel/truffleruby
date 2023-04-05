@@ -53,6 +53,7 @@ Bug fixes:
 * Fix `IO` line reading calls when using a multi-byte delimiter (`IO#{each,gets,readline,readlines,etc.}) (#2961, @vinistock, @nirvdrum).
 * Fix the exception type raised when type coercion raises a `NoMethodError` (#2903, @paracycle, @nirvdrum).
 * Fix `Method` and `Proc` `#parameters` method to return `_` parameter name without synthetic suffix when there are multiple `_` parameters (@paracycle).
+* Fix `Refinement#import_methods` to supports module methods with super (#2971, @horakivo).
 
 Compatibility:
 
