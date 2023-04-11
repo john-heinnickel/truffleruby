@@ -58,6 +58,7 @@ Bug fixes:
 * Fix the exception type raised when type coercion raises a `NoMethodError` (#2903, @paracycle, @nirvdrum).
 * Fix `Method` and `Proc` `#parameters` method to return `_` parameter name without synthetic suffix when there are multiple `_` parameters (@paracycle).
 * Fix `Refinement#import_methods` to supports module methods with super (#2971, @horakivo).
+* Fixed errors in IRB when attempting to navigate beyond bounds in singleline mode (@rwstauner).
 
 Compatibility:
 
@@ -143,7 +144,6 @@ Performance:
 * `Process.pid` is now cached per process like `$$` (#2882, @horakivo)
 * Use the system `libyaml` for `psych` to improve warmup when parsing YAML (#2089, @eregon).
 * Fixed repeated deoptimizations for methods building an `Array` which is growing over multiple calls at a given call site (@eregon).
-* Fixed errors in IRB when attempting to navigate beyond bounds in singleline mode (@rwstauner).
 
 Changes:
 
