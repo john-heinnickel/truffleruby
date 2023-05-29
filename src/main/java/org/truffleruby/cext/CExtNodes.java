@@ -1822,7 +1822,7 @@ public class CExtNodes {
         protected Object addToMarkList(Object markedObject,
                 @Cached InlinedBranchProfile noExceptionProfile,
                 @Cached UnwrapNode.ToWrapperNode toWrapperNode) {
-            ValueWrapper wrappedValue = toWrapperNode.execute(markedObject);
+            ValueWrapper wrappedValue = toWrapperNode.execute(this, markedObject);
             if (wrappedValue != null) {
                 noExceptionProfile.enter(this);
                 getContext().getMarkingService()
@@ -1844,7 +1844,7 @@ public class CExtNodes {
                 @Cached MarkingServiceNodes.KeepAliveNode keepAliveNode,
                 @Cached InlinedBranchProfile noExceptionProfile,
                 @Cached UnwrapNode.ToWrapperNode toWrapperNode) {
-            ValueWrapper wrappedValue = toWrapperNode.execute(guardedObject);
+            ValueWrapper wrappedValue = toWrapperNode.execute(this, guardedObject);
             if (wrappedValue != null) {
                 noExceptionProfile.enter(this);
                 keepAliveNode.execute(wrappedValue);
