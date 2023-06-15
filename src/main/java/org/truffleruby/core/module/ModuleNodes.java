@@ -22,6 +22,8 @@ import java.util.concurrent.ConcurrentMap;
 
 import com.oracle.truffle.api.CompilerAsserts;
 import com.oracle.truffle.api.TruffleSafepoint;
+import com.oracle.truffle.api.dsl.GenerateCached;
+import com.oracle.truffle.api.dsl.GenerateInline;
 import com.oracle.truffle.api.dsl.GenerateUncached;
 import com.oracle.truffle.api.dsl.NeverDefault;
 import com.oracle.truffle.api.dsl.NodeFactory;
@@ -662,16 +664,13 @@ public abstract class ModuleNodes {
     @NodeChild(value = "inherit", type = RubyBaseNodeWithExecute.class)
     public abstract static class IsAutoloadNode extends CoreMethodNode {
 
-        @CreateCast("inherit")
-        protected RubyBaseNodeWithExecute coerceToBoolean(RubyBaseNodeWithExecute inherit) {
-            return BooleanCastWithDefaultNode.create(true, inherit);
-        }
-
         @Specialization
         @TruffleBoundary
-        protected Object isAutoload(RubyModule module, Object nameObject, boolean inherit,
+        protected Object isAutoload(RubyModule module, Object nameObject, Object maybeInherit,
+                @Cached BooleanCastWithDefaultNode booleanCastWithDefaultNode,
                 @Cached NameToJavaStringNode nameToJavaStringNode) {
             final var name = nameToJavaStringNode.execute(this, nameObject);
+            final var inherit = booleanCastWithDefaultNode.execute(maybeInherit, true);
             final ConstantLookupResult constant = ModuleOperations.lookupConstantWithInherit(
                     getContext(),
                     module,
@@ -891,14 +890,11 @@ public abstract class ModuleNodes {
     @NodeChild(value = "inherit", type = RubyBaseNodeWithExecute.class)
     public abstract static class ClassVariablesNode extends CoreMethodNode {
 
-        @CreateCast("inherit")
-        protected RubyBaseNodeWithExecute coerceToBoolean(RubyBaseNodeWithExecute inherit) {
-            return BooleanCastWithDefaultNode.create(true, inherit);
-        }
-
         @TruffleBoundary
         @Specialization
-        protected RubyArray getClassVariables(RubyModule module, boolean inherit) {
+        protected RubyArray getClassVariables(RubyModule module, Object maybeInherit,
+                @Cached BooleanCastWithDefaultNode booleanCastWithDefaultNode) {
+            final boolean inherit = booleanCastWithDefaultNode.execute(maybeInherit, true);
             final Set<Object> variables = new LinkedHashSet<>();
 
             ModuleOperations.classVariableLookup(module, inherit, m -> {
@@ -918,14 +914,11 @@ public abstract class ModuleNodes {
     @NodeChild(value = "inherit", type = RubyBaseNodeWithExecute.class)
     public abstract static class ConstantsNode extends CoreMethodNode {
 
-        @CreateCast("inherit")
-        protected RubyBaseNodeWithExecute coerceToBoolean(RubyBaseNodeWithExecute inherit) {
-            return BooleanCastWithDefaultNode.create(true, inherit);
-        }
-
         @TruffleBoundary
         @Specialization
-        protected RubyArray constants(RubyModule module, boolean inherit) {
+        protected RubyArray constants(RubyModule module, Object maybeInherit,
+                @Cached BooleanCastWithDefaultNode booleanCastWithDefaultNode) {
+            final boolean inherit = booleanCastWithDefaultNode.execute(maybeInherit, true);
             final List<RubySymbol> constantsArray = new ArrayList<>();
 
             final Iterable<Entry<String, ConstantEntry>> constants;
@@ -948,55 +941,20 @@ public abstract class ModuleNodes {
     }
 
     @Primitive(name = "module_const_defined?")
-    @NodeChild(value = "moduleNode", type = RubyNode.class)
-    @NodeChild(value = "nameNode", type = RubyBaseNodeWithExecute.class)
-    @NodeChild(value = "inheritNode", type = RubyBaseNodeWithExecute.class)
-    @NodeChild(value = "checkNameNode", type = RubyNode.class)
-    public abstract static class ConstDefinedNode extends PrimitiveNode {
-
-        public static ConstDefinedNode create(RubyNode module, RubyBaseNodeWithExecute name,
-                RubyBaseNodeWithExecute inherit, RubyNode checkName) {
-            return ModuleNodesFactory.ConstDefinedNodeFactory.create(module, name, inherit, checkName);
-        }
-
-        abstract RubyNode getModuleNode();
-
-        abstract RubyBaseNodeWithExecute getNameNode();
-
-        abstract RubyBaseNodeWithExecute getInheritNode();
-
-        abstract RubyNode getCheckNameNode();
-
-
-        @CreateCast("inheritNode")
-        protected RubyBaseNodeWithExecute coerceToBoolean(RubyBaseNodeWithExecute inherit) {
-            return BooleanCastWithDefaultNode.create(true, inherit);
-        }
+    public abstract static class ConstDefinedNode extends PrimitiveArrayArgumentsNode {
 
         @TruffleBoundary
         @Specialization
-        protected boolean isConstDefined(RubyModule module, Object fullNameObject, boolean inherit, boolean checkName,
+        protected boolean isConstDefined(
+                RubyModule module, Object fullNameObject, Object inheritObject, boolean checkName,
+                @Cached BooleanCastWithDefaultNode booleanCastWithDefaultNode,
                 @Cached NameToJavaStringNode nameToJavaStringNode) {
             final var fullName = nameToJavaStringNode.execute(this, fullNameObject);
+            final boolean inherit = booleanCastWithDefaultNode.execute(inheritObject, true);
             final ConstantLookupResult constant = ModuleOperations
                     .lookupScopedConstant(getContext(), module, fullName, inherit, this, checkName);
             return constant.isFound();
         }
-
-        private RubyBaseNodeWithExecute getInheritNodeBeforeCasting() {
-            return ((BooleanCastWithDefaultNode) getInheritNode()).getValueNode();
-        }
-
-        @Override
-        public RubyNode cloneUninitialized() {
-            var copy = create(
-                    getModuleNode().cloneUninitialized(),
-                    getNameNode().cloneUninitialized(),
-                    getInheritNodeBeforeCasting().cloneUninitialized(),
-                    getCheckNameNode().cloneUninitialized());
-            return copy.copyFlags(this);
-        }
-
     }
 
     @Primitive(name = "module_const_get")
@@ -1178,49 +1136,58 @@ public abstract class ModuleNodes {
     @NodeChild(value = "module", type = RubyNode.class)
     @NodeChild(value = "name", type = RubyBaseNodeWithExecute.class)
     @NodeChild(value = "inherit", type = RubyBaseNodeWithExecute.class)
-    public abstract static class ConstSourceLocationNode extends CoreMethodNode {
+    public abstract static class ModuleConstSourceLocationNode extends CoreMethodNode {
 
-        @Child private TruffleString.FromJavaStringNode fromJavaStringNode = TruffleString.FromJavaStringNode.create();
-
-        @CreateCast("name")
-        protected RubyBaseNodeWithExecute coerceToStringOrSymbol(RubyBaseNodeWithExecute name) {
-            return ToStringOrSymbolNodeGen.create(name);
+        @Specialization
+        protected Object constSourceLocation(RubyModule module, Object nameObject, Object maybeInherit,
+                @Cached ConstSourceLocationNode constSourceLocationNode,
+                @Cached BooleanCastWithDefaultNode booleanCastWithDefaultNode,
+                @Cached ToStringOrSymbolNode toStringOrSymbolNode) {
+            final boolean inherit = booleanCastWithDefaultNode.execute(maybeInherit, true);
+            final var name = toStringOrSymbolNode.execute(nameObject);
+            return constSourceLocationNode.execute(this, module, name, inherit);
         }
+    }
 
-        @CreateCast("inherit")
-        protected RubyBaseNodeWithExecute coerceToBoolean(RubyBaseNodeWithExecute inherit) {
-            return BooleanCastWithDefaultNode.create(true, inherit);
-        }
+    @GenerateCached(false)
+    @GenerateInline
+    public abstract static class ConstSourceLocationNode extends RubyBaseNode {
+
+        public abstract Object execute(Node node, RubyModule module, Object name, boolean inherit);
 
         @Specialization(guards = "strings.isRubyString(name)", limit = "1")
         @TruffleBoundary
-        protected Object constSourceLocation(RubyModule module, Object name, boolean inherit,
+        protected static Object constSourceLocation(Node node, RubyModule module, Object name, boolean inherit,
+                @Cached @Shared TruffleString.FromJavaStringNode fromJavaStringNode,
                 @Cached RubyStringLibrary strings) {
             final ConstantLookupResult lookupResult = ModuleOperations
-                    .lookupScopedConstant(getContext(), module, RubyGuards.getJavaString(name), inherit, this, true);
+                    .lookupScopedConstant(getContext(node), module, RubyGuards.getJavaString(name), inherit, node,
+                            true);
 
-            return getLocation(lookupResult);
+            return getLocation(node, lookupResult, fromJavaStringNode);
         }
 
         @Specialization
         @TruffleBoundary
-        protected Object constSourceLocation(RubyModule module, RubySymbol name, boolean inherit) {
+        protected static Object constSourceLocation(Node node, RubyModule module, RubySymbol name, boolean inherit,
+                @Cached @Shared TruffleString.FromJavaStringNode fromJavaStringNode) {
             final ConstantLookupResult lookupResult = ModuleOperations
-                    .lookupConstantWithInherit(getContext(), module, name.getString(), inherit, this, true);
+                    .lookupConstantWithInherit(getContext(node), module, name.getString(), inherit, node, true);
 
-            return getLocation(lookupResult);
+            return getLocation(node, lookupResult, fromJavaStringNode);
         }
 
-        private Object getLocation(ConstantLookupResult lookupResult) {
+        private static Object getLocation(Node node, ConstantLookupResult lookupResult,
+                TruffleString.FromJavaStringNode fromJavaStringNode) {
             if (!lookupResult.isFound()) {
                 return nil;
             }
 
             final SourceSection sourceSection = lookupResult.getConstant().getSourceSection();
             if (!BacktraceFormatter.isAvailable(sourceSection)) {
-                return createEmptyArray();
+                return createEmptyArray(node);
             } else {
-                return getLanguage().rubySourceLocation(getContext(), sourceSection, fromJavaStringNode, this);
+                return getLanguage(node).rubySourceLocation(getContext(node), sourceSection, fromJavaStringNode, node);
             }
         }
 
@@ -1631,16 +1598,13 @@ public abstract class ModuleNodes {
     @NodeChild(value = "inherit", type = RubyBaseNodeWithExecute.class)
     public abstract static class MethodDefinedNode extends CoreMethodNode {
 
-        @CreateCast("inherit")
-        protected RubyBaseNodeWithExecute coerceToBoolean(RubyBaseNodeWithExecute inherit) {
-            return BooleanCastWithDefaultNode.create(true, inherit);
-        }
-
         @TruffleBoundary
         @Specialization
-        protected boolean isMethodDefined(RubyModule module, Object nameObject, boolean inherit,
+        protected boolean isMethodDefined(RubyModule module, Object nameObject, Object maybeInherit,
+                @Cached BooleanCastWithDefaultNode booleanCastWithDefaultNode,
                 @Cached NameToJavaStringNode nameToJavaStringNode) {
             final var name = nameToJavaStringNode.execute(this, nameObject);
+            final var inherit = booleanCastWithDefaultNode.execute(maybeInherit, true);
             final InternalMethod method;
             if (inherit) {
                 method = ModuleOperations.lookupMethodUncached(module, name, null);
@@ -1885,14 +1849,11 @@ public abstract class ModuleNodes {
             this.visibility = visibility;
         }
 
-        @CreateCast("includeAncestors")
-        protected RubyBaseNodeWithExecute coerceToBoolean(RubyBaseNodeWithExecute includeAncestors) {
-            return BooleanCastWithDefaultNode.create(true, includeAncestors);
-        }
-
         @Specialization
         @TruffleBoundary
-        protected RubyArray getInstanceMethods(RubyModule module, boolean includeAncestors) {
+        protected RubyArray getInstanceMethods(RubyModule module, Object maybeIncludeAncestors,
+                @Cached BooleanCastWithDefaultNode booleanCastWithDefaultNode) {
+            final boolean includeAncestors = booleanCastWithDefaultNode.execute(maybeIncludeAncestors, true);
             Object[] objects = module.fields
                     .filterMethods(getLanguage(), includeAncestors, MethodFilter.by(visibility))
                     .toArray();
@@ -1940,18 +1901,14 @@ public abstract class ModuleNodes {
             this.visibility = visibility;
         }
 
-        @CreateCast("inherit")
-        protected RubyBaseNodeWithExecute coerceToBoolean(RubyBaseNodeWithExecute inherit) {
-            return BooleanCastWithDefaultNode.create(true, inherit);
-        }
-
         // NOTE(norswap): We considered caching the lookup here, but determined that the resulting complexity
         //   increase in LookupMethodNode wasn't worth it, as it would slow down the more common cases.
-
         @Specialization
-        protected boolean isMethodDefined(RubyModule module, Object nameObject, boolean inherit,
+        protected boolean isMethodDefined(RubyModule module, Object nameObject, Object maybeInheritObject,
+                @Cached BooleanCastWithDefaultNode booleanCastWithDefaultNode,
                 @Cached NameToJavaStringNode nameToJavaStringNode,
                 @Cached InlinedConditionProfile inheritProfile) {
+            final var inherit = booleanCastWithDefaultNode.execute(maybeInheritObject, true);
             final var name = nameToJavaStringNode.execute(this, nameObject);
             final InternalMethod method;
             if (inheritProfile.profile(this, inherit)) {
@@ -1991,14 +1948,11 @@ public abstract class ModuleNodes {
     @NodeChild(value = "includeAncestors", type = RubyBaseNodeWithExecute.class)
     public abstract static class InstanceMethodsNode extends CoreMethodNode {
 
-        @CreateCast("includeAncestors")
-        protected RubyBaseNodeWithExecute coerceToBoolean(RubyBaseNodeWithExecute includeAncestors) {
-            return BooleanCastWithDefaultNode.create(true, includeAncestors);
-        }
-
         @TruffleBoundary
         @Specialization
-        protected RubyArray instanceMethods(RubyModule module, boolean includeAncestors) {
+        protected RubyArray instanceMethods(RubyModule module, Object maybeIncludeAncestors,
+                @Cached BooleanCastWithDefaultNode booleanCastWithDefaultNode) {
+            final boolean includeAncestors = booleanCastWithDefaultNode.execute(maybeIncludeAncestors, true);
             Object[] objects = module.fields
                     .filterMethods(getLanguage(), includeAncestors, MethodFilter.PUBLIC_PROTECTED)
                     .toArray();
