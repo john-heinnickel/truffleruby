@@ -135,6 +135,7 @@ class YARPNativeProject(mx.NativeProject):
 
 class YARPNativeBuildTask(mx.NativeBuildTask):
     def build(self):
+        mx.run(['autoreconf'], cwd=self.subject.dir)
         mx.run(['./configure'], cwd=self.subject.dir)
         super(YARPNativeBuildTask, self).build() # make
 
