@@ -218,6 +218,12 @@ local part_definitions = {
   jdk: {
     local with_path = { environment+: { path+:: ["$JAVA_HOME/bin"] } },
 
+    local v17 = with_path + common.jdks["labsjdk-ce-17"] + {
+      environment+: {
+        JT_JDK: "17",
+      },
+    },
+
     local v21 = with_path + common.jdks["labsjdk-ce-21"] + {
       environment+: {
         JT_JDK: "21",
