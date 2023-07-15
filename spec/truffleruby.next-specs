@@ -43,3 +43,4 @@ spec/ruby/core/thread/each_caller_location_spec.rb
 spec/ruby/core/sizedqueue/append_spec.rb
 spec/ruby/core/sizedqueue/enq_spec.rb
 spec/ruby/core/sizedqueue/push_spec.rb
+spec/ruby/core/enumerator/product_spec.rb
